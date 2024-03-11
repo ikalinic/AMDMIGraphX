@@ -653,6 +653,41 @@ struct mlir_program
             MIGRAPHX_THROW("Missing @return as last instruction.");
     }
 
+    std::vector<int64_t> compute_shape_dims(shape s, std::vector<int64_t> dims) const
+    {
+        auto n_neg_dims = std::count(dims.begin(), dims.end(), -1);
+        std::vector<int64_t> rdims(dims.begin(), dims.end());
+        auto&& idims = s.lens();
+
+        if(n_neg_dims > 1)
+            MIGRAPHX_THROW("parse_reshape: Dimensions for reshape can only have one -1 dim");
+
+        for(std::size_t i = 0; i < dims.size(); i++)
+        {
+            if(dims[i] == 0)
+                rdims[i] = idims[i];
+
+            // since rdims using size_t type, -1 is the max value
+            // is size_t that cause later compuation incorrect
+            if(dims[i] == -1)
+                rdims[i] = 1;
+        }
+
+        if(n_neg_dims > 0)
+        {
+            size_t missing_dim =
+                s.elements() /
+                std::accumulate(rdims.begin(), rdims.end(), 1, std::multiplies<int64_t>());
+            for(std::size_t i = 0; i < rdims.size(); i++)
+            {
+                if(dims[i] == -1)
+                    rdims[i] = missing_dim;
+            }
+        }
+
+        return rdims;
+    }
+
     void parse(const module& m)
     {
         validate(m);
@@ -672,7 +707,14 @@ struct mlir_program
             }
             auto name = get_name(ins);
             auto ops  = create_operation_state(name);
-            ops.add_attribute_value(get_operator_value(ins->get_operator()));
+            if(ins->name() == "reshape")
+            {
+                auto dims = any_cast<op::reshape>(ins->get_operator()).dims;
+                dims = compute_shape_dims(ins->get_shape(), dims);
+                ops.add_attributes({{"dims", dims}});
+            } else {
+                ops.add_attribute_value(get_operator_value(ins->get_operator()));
+            }
             if(ins->name() != "@return")
                 ops.add_results({get_shape(ins)});
             if(ins->name() == "@literal")

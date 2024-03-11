@@ -23,6 +23,7 @@
  */
 #include <migraphx/algorithm.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/op/reshape.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/gpu/mlir.hpp>
 #include <ostream>
